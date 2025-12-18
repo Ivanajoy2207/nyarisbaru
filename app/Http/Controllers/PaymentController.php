@@ -23,9 +23,18 @@ class PaymentController extends Controller
 
         // update status escrow
         $transaction->update([
-            'status' => 'paid',
+            'status' => 'paid',  # Penjual gk msuk notif
             'escrow_status' => 'held',
         ]);
+
+        // Notifikasi ke seller
+        $seller = $transaction->seller;
+        if ($seller) {
+            $seller->notify(new \App\Notifications\TransactionStatusChanged(
+                $transaction,
+                'Pembeli telah melakukan pembayaran'
+            ));
+        }
 
         return redirect()
             ->route('products.show', $transaction->product_id)

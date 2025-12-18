@@ -45,6 +45,13 @@ class TransactionController extends Controller
 
         $transaction->update(['status' => 'shipped']);
 
+        // Tandai notif transaksi ini sudah terbaca
+        $seller = User::find($transaction->seller_id);
+        $seller->notifications()
+            ->where('type', TransactionStatusChanged::class)
+            ->where('data->transaction_id', $transaction->id)
+            ->update(['read_at' => now()]);
+
         // notif ke buyer
         $buyer = User::find($transaction->buyer_id);
         if ($buyer) $buyer->notify(new TransactionStatusChanged($transaction, 'Penjual mengirim barang'));
@@ -62,9 +69,12 @@ class TransactionController extends Controller
             'escrow_status' => 'released',
         ]);
 
-        // notif ke seller
-        $seller = User::find($transaction->seller_id);
-        if ($seller) $seller->notify(new TransactionStatusChanged($transaction, 'Pembeli mengkonfirmasi barang diterima'));
+        $buyer = User::find($transaction->buyer_id);
+        // Tandai notif transaksi ini sudah terbaca
+        $buyer->notifications()
+            ->where('type', TransactionStatusChanged::class)
+            ->where('data->transaction_id', $transaction->id)
+            ->update(['read_at' => now()]);
 
         return back()->with('success', 'Barang diterima. Dana dilepas ke penjual.');
     }
