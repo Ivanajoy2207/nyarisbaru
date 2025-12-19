@@ -167,13 +167,18 @@
                 <p class="pf-header-sub">Ringkasan aktivitas kamu di NyarisBaru.</p>
 
                 <div class="pf-main-row">
-                    <div class="pf-avatar">
-                        @if(!empty($avatarPath))
-                            <img src="{{ asset('storage/' . $avatarPath) }}" alt="{{ $user->name }}">
+                    <div class="pf-avatar" style="overflow:hidden;">
+                        @if(!empty($user->avatar_path))
+                            <img
+                                src="{{ asset('storage/' . $user->avatar_path) }}"
+                                alt="Avatar"
+                                style="width:100%;height:100%;object-fit:cover;"
+                            >
                         @else
                             {{ strtoupper(substr($user->name, 0, 1)) }}
                         @endif
                     </div>
+
 
                     <div>
                         <div class="pf-name">{{ $user->name }}</div>

@@ -8,6 +8,7 @@ use App\Models\Transaction;
 use App\Models\ProductReview;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 
 class ProfileController extends Controller
 {
@@ -17,18 +18,16 @@ class ProfileController extends Controller
     }
 
     /**
-     * ============================
-     *  SHOW PROFILE PAGE
-     * ============================
+     * SHOW PROFILE PAGE
      */
     public function show()
     {
-
         $user = Auth::user();
 
-        // ✅ mark notif transaksi sebagai read saat buka profil
+        // ✅ Mark notif transaksi sebagai read saat buka profil
+        // (notif kamu pakai "kind", bukan "type")
         $user->unreadNotifications()
-            ->where('data->type', 'transaction_status')
+            ->where('data->kind', 'transaction_status')
             ->update(['read_at' => now()]);
 
         // Produk yang dijual user
@@ -46,10 +45,7 @@ class ProfileController extends Controller
         // Wishlist count
         $wishlistCount = $user->wishlist()->count();
 
-        /**
-         * ✅ TRANSAKSI PEMBELIAN (JANGAN HANYA COMPLETED)
-         * Tampilkan semua transaksi buyer selain canceled
-         */
+        // ✅ TRANSAKSI PEMBELIAN: tampilkan semua selain canceled
         $transactionsBought = Transaction::with(['product', 'seller'])
             ->where('buyer_id', $user->id)
             ->where('status', '!=', 'canceled')
@@ -57,14 +53,11 @@ class ProfileController extends Controller
             ->take(10)
             ->get();
 
-        // Count pembelian (selain canceled)
         $boughtCount = Transaction::where('buyer_id', $user->id)
             ->where('status', '!=', 'canceled')
             ->count();
 
-        // ============================
-        // SELLER RATING (JIKA DIA JUALAN)
-        // ============================
+        // SELLER RATING
         $sellerProductIds = Product::where('user_id', $user->id)
             ->whereHas('transaction', fn($q) => $q->where('status', 'completed'))
             ->pluck('id');
@@ -72,11 +65,8 @@ class ProfileController extends Controller
         $sellerReviewCount = ProductReview::whereIn('product_id', $sellerProductIds)->count();
         $sellerAvgRating   = ProductReview::whereIn('product_id', $sellerProductIds)->avg('rating');
 
-        $isTrustedSeller =
-            $sellerReviewCount >= 3 &&
-            $sellerAvgRating >= 4.5;
+        $isTrustedSeller = $sellerReviewCount >= 3 && $sellerAvgRating >= 4.5;
 
-        // ✅ Data stats
         $stats = [
             'products_count'  => $products->count(),
             'posts_count'     => $posts->count(),
@@ -94,6 +84,46 @@ class ProfileController extends Controller
             'sellerAvgRating',
             'isTrustedSeller'
         ));
+    }
+
+    /**
+     * EDIT PROFILE FORM
+     */
+    public function edit()
+    {
+        $user = Auth::user();
+        return view('profile.edit', compact('user'));
+    }
+
+    /**
+     * SAVE PROFILE UPDATE
+     */
+    public function update(Request $request)
+    {
+        $user = Auth::user();
+
+        $data = $request->validate([
+            'name'   => ['required', 'string', 'max:255'],
+            'city'   => ['nullable', 'string', 'max:100'],
+            'bio'    => ['nullable', 'string', 'max:200'],
+            'avatar' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+        ]);
+
+        if ($request->hasFile('avatar')) {
+            // hapus avatar lama kalau ada
+            if ($user->avatar_path && Storage::disk('public')->exists($user->avatar_path)) {
+                Storage::disk('public')->delete($user->avatar_path);
+            }
+
+            $path = $request->file('avatar')->store('avatars', 'public');
+            $data['avatar_path'] = $path; // ✅ konsisten pakai avatar_path
+        }
+
+        $user->update($data);
+
+        return redirect()
+            ->route('profile.show')
+            ->with('success', 'Profil berhasil diperbarui ✨');
     }
 
     public function sellerReviews()
